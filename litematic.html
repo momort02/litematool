@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Litematic Tools</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+
+  :root {
+    --dirt: #8B6343;
+    --grass: #5D9E3F;
+    --stone: #8A8A8A;
+    --wood: #A0752A;
+    --sky: #87CEEB;
+    --night: #0a0a1a;
+    --gold: #FFD700;
+    --red: #c0392b;
+    --green: #27ae60;
+    --panel: rgba(20,20,30,0.92);
+    --border: #4a4a5a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--night);
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23111122'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23111122'/%3E%3Crect x='8' y='0' width='8' height='8' fill='%230d0d1f'/%3E%3Crect x='0' y='8' width='8' height='8' fill='%230d0d1f'/%3E%3C/svg%3E");
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  /* Pixel border mixin */
+  .pixel-box {
+    border: 3px solid #555;
+    box-shadow: 3px 3px 0 #000, inset 1px 1px 0 #888, inset -1px -1px 0 #333;
+    background: var(--panel);
+  }
+
+  header {
+    background: linear-gradient(180deg, #1a3a1a 0%, #0d1f0d 100%);
+    border-bottom: 4px solid var(--grass);
+    padding: 16px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  header::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 8px;
+    background: repeating-linear-gradient(90deg, var(--grass) 0px, var(--grass) 16px, var(--dirt) 16px, var(--dirt) 32px);
+  }
+
+  header h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(11px, 3.5vw, 18px);
+    color: var(--gold);
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255,215,0,0.4);
+    letter-spacing: 1px;
+    line-height: 1.6;
+  }
+
+  header p {
+    color: #9dbf9e;
+    font-size: clamp(14px, 4vw, 18px);
+    margin-top: 6px;
+  }
+
+  .container { max-width: 680px; margin: 0 auto; padding: 16px; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 3px dashed var(--grass);
+    background: rgba(93,158,63,0.07);
+    border-radius: 4px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { background: rgba(93,158,63,0.18); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+  .upload-icon {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 2px 4px #000);
+  }
+
+  .upload-zone h2 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 3vw, 13px);
+    color: var(--grass);
+    margin-bottom: 8px;
+  }
+
+  /* Section title */
+  .section-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 2.8vw, 12px);
+    color: var(--gold);
+    border-left: 4px solid var(--gold);
+    padding: 6px 10px;
+    margin: 20px 0 12px;
+    background: rgba(255,215,0,0.05);
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .stat-chip {
+    background: rgba(255,255,255,0.07);
+    border: 2px solid #444;
+    padding: 6px 12px;
+    font-size: clamp(14px, 4vw, 18px);
+    border-radius: 3px;
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+  }
+  .stat-chip span { display: block; color: var(--gold); font-size: 0.85em; }
+
+  /* Search + filter */
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .controls input, .controls select {
+    background: #111;
+    border: 2px solid #444;
+    color: #e0e0e0;
+    font-family: 'VT323', monospace;
+    font-size: clamp(16px, 4.5vw, 20px);
+    padding: 8px 10px;
+    flex: 1;
+    min-width: 120px;
+    outline: none;
+    border-radius: 2px;
+  }
+  .controls input:focus, .controls select:focus { border-color: var(--grass); }
+
+  /* Material list */
+  .material-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .mat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 2px solid #333;
+    border-radius: 3px;
+    padding: 8px 10px;
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+  .mat-row:hover { background: rgba(255,255,255,0.09); border-color: #555; }
+  .mat-row.selected { background: rgba(255,215,0,0.1); border-color: var(--gold); }
+
+  .mat-icon {
+    width: 28px; height: 28px;
+    border-radius: 3px;
+    border: 2px solid #555;
+    flex-shrink: 0;
+    image-rendering: pixelated;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    background: #222;
+  }
+
+  .mat-name {
+    flex: 1;
+    font-size: clamp(16px, 4.5vw, 20px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mat-count {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(8px, 2.5vw, 11px);
+    color: var(--gold);
+    text-align: right;
+    min-width: 60px;
+  }
+
+  .mat-stacks {
+    font-size: clamp(13px, 3.5vw, 16px);
+    color: #888;
+    min-width: 70px;
+    text-align: right;
+  }
+
+  .bar-wrap { width: 60px; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--grass); border-radius: 3px; }
+
+  /* Replace panel */
+  .replace-panel {
+    background: rgba(10,10,30,0.95);
+    border: 3px solid var(--gold);
+    border-radius: 4px;
+    padding: 16px;
+    margin-top: 20px;
+    box-shadow: 0 0 20px rgba(255,215,0,0.15);
+  }
+
+  .replace-panel h3 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 2.8vw, 12px);
+    color: var(--gold);
+    margin-bottom: 14px;
+  }
+
+  .replace-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .replace-row label {
+    font-size: clamp(14px, 4vw, 18px);
+    color: #aaa;
+    min-width: 60px;
+  }
+
+  .replace-row select, .replace-row input {
+    background: #111;
+    border: 2px solid #444;
+    color: #e0e0e0;
+    font-family: 'VT323', monospace;
+    font-size: clamp(16px, 4vw, 20px);
+    padding: 7px 10px;
+    flex: 1;
+    min-width: 140px;
+    outline: none;
+    border-radius: 2px;
+  }
+
+  .replace-row select:focus, .replace-row input:focus { border-color: var(--gold); }
+
+  .arrow { font-size: 24px; color: var(--gold); flex-shrink: 0; }
+
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(9px, 2.8vw, 11px);
+    padding: 12px 18px;
+    border: none;
+    cursor: pointer;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    transition: filter 0.15s, transform 0.1s;
+    box-shadow: 3px 3px 0 #000;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #000; }
+
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { filter: brightness(1.2); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover { filter: brightness(1.2); }
+  .btn-blue { background: #2980b9; color: #fff; }
+  .btn-blue:hover { filter: brightness(1.2); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-row .btn { flex: 1; }
+
+  /* Export */
+  .export-section { margin-top: 20px; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #555;
+  }
+  .empty-state .e-icon { font-size: 48px; display: block; margin-bottom: 10px; }
+
+  /* Loading */
+  .loading {
+    text-align: center;
+    padding: 30px;
+    color: var(--grass);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Toasts */
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: #111;
+    border: 2px solid var(--grass);
+    color: var(--grass);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 10px 18px;
+    border-radius: 4px;
+    z-index: 999;
+    box-shadow: 3px 3px 0 #000;
+    animation: slideup 0.3s ease;
+    max-width: 90vw;
+    text-align: center;
+  }
+  @keyframes slideup { from { opacity:0; transform: translateX(-50%) translateY(20px); } }
+
+  .replace-history { margin-top: 12px; }
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: clamp(13px, 3.8vw, 17px);
+    padding: 5px 8px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 3px;
+    margin-bottom: 4px;
+    gap: 8px;
+  }
+  .history-item .undo-btn {
+    font-size: 12px;
+    padding: 3px 8px;
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-family: 'VT323', monospace;
+    border-radius: 2px;
+  }
+
+  .selected-info {
+    font-size: clamp(13px, 3.5vw, 16px);
+    color: var(--gold);
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: rgba(255,215,0,0.07);
+    border-radius: 3px;
+    border: 1px solid rgba(255,215,0,0.2);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⛏ LITEMATIC TOOLS</h1>
+  <p>Analyseur de schémas Minecraft</p>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".litematic">
+    <span class="upload-icon">📦</span>
+    <h2>IMPORTER .LITEMATIC</h2>
+    <p>Touche ou glisse un fichier ici</p>
+  </div>
+
+  <div id="app">
+    <div class="empty-state">
+      <span class="e-icon">🪨</span>
+      <p>Aucun fichier chargé</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── NBT Parser ─────────────────────────────────────────────────────────────
+const TAG = { End:0,Byte:1,Short:2,Int:3,Long:4,Float:5,Double:6,ByteArray:7,String:8,List:9,Compound:10,IntArray:11,LongArray:12 };
+
+function readNBT(buf) {
+  const view = new DataView(buf);
+  let pos = 0;
+  function str() {
+    const len = view.getUint16(pos); pos += 2;
+    const v = new TextDecoder().decode(new Uint8Array(buf, pos, len)); pos += len;
+    return v;
+  }
+  function readLong() {
+    // Store as {_long:true, hi:Int32, lo:Uint32} to preserve exact signed 64-bit value
+    const hi = view.getInt32(pos); const lo = view.getUint32(pos+4); pos += 8;
+    return {_long:true, hi, lo};
+  }
+  function readTag(type) {
+    switch(type) {
+      case TAG.End: return null;
+      case TAG.Byte: return {_byte:true, v:view.getInt8(pos++)};
+      case TAG.Short: { const v=view.getInt16(pos);pos+=2;return {_short:true,v}; }
+      case TAG.Int: { const v=view.getInt32(pos);pos+=4;return v; }
+      case TAG.Long: return readLong();
+      case TAG.Float: { const v=view.getFloat32(pos);pos+=4;return {_float:true,v}; }
+      case TAG.Double: { const v=view.getFloat64(pos);pos+=8;return v; }
+      case TAG.ByteArray: {
+        const len=view.getInt32(pos);pos+=4;
+        const arr=new Int8Array(len);
+        for(let i=0;i<len;i++) arr[i]=view.getInt8(pos+i);
+        pos+=len; return {_byteArray:true, data:arr};
+      }
+      case TAG.String: return str();
+      case TAG.List: {
+        const etype=view.getUint8(pos++);
+        const len=view.getInt32(pos);pos+=4;
+        const arr=[];
+        for(let i=0;i<len;i++) arr.push(readTag(etype));
+        return {_list:true, etype, data:arr};
+      }
+      case TAG.Compound: {
+        const obj={_compound:true};
+        while(true){
+          const t=view.getUint8(pos++);
+          if(t===TAG.End) break;
+          const name=str();
+          obj[name]=readTag(t);
+        }
+        return obj;
+      }
+      case TAG.IntArray: {
+        const len=view.getInt32(pos);pos+=4;
+        const arr=new Int32Array(len);
+        for(let i=0;i<len;i++){arr[i]=view.getInt32(pos);pos+=4;}
+        return {_intArray:true, data:arr};
+      }
+      case TAG.LongArray: {
+        const len=view.getInt32(pos);pos+=4;
+        const arr=[];
+        for(let i=0;i<len;i++) arr.push(readLong());
+        return {_longArray:true, data:arr};
+      }
+    }
+  }
+  const rootType=view.getUint8(pos++);
+  str(); // root name (always empty for litematic root)
+  return readTag(rootType);
+}
+
+// ─── Litematic parser ───────────────────────────────────────────────────────
+function nbtGet(obj, key) {
+  // Unwrap typed NBT compound
+  if (obj && obj._compound) return obj[key];
+  if (obj && typeof obj === 'object') return obj[key];
+  return undefined;
+}
+function nbtList(obj) {
+  if (!obj) return [];
+  if (obj._list) return obj.data;
+  if (Array.isArray(obj)) return obj;
+  return [];
+}
+function nbtLongToBI(l) {
+  // Convert {_long, hi, lo} to BigInt, preserving sign
+  const hi = BigInt(l.hi) & 0xFFFFFFFFn;
+  const lo = BigInt(l.lo) & 0xFFFFFFFFn;
+  let v = (hi << 32n) | lo;
+  if (v >= 0x8000000000000000n) v -= 0x10000000000000000n;
+  return v;
+}
+function nbtStr(v) { return typeof v === 'string' ? v : ''; }
+function nbtInt(v) { return typeof v === 'number' ? v : 0; }
+
+function parseLitematic(buffer) {
+  const decompressed = pako.inflate(new Uint8Array(buffer));
+  const nbt = readNBT(decompressed.buffer);
+
+  const counts = {};
+  const regionsObj = nbtGet(nbt, 'Regions') || {};
+  const regionKeys = Object.keys(regionsObj).filter(k => k !== '_compound');
+
+  for (const regionName of regionKeys) {
+    const region = regionsObj[regionName];
+    const paletteList = nbtGet(region, 'BlockStatePalette');
+    const palette = nbtList(paletteList);
+    const statesObj = nbtGet(region, 'BlockStates');
+    if (!palette.length || !statesObj) continue;
+
+    const sizeObj = nbtGet(region, 'Size');
+    const sx = Math.abs(nbtInt(nbtGet(sizeObj,'x')));
+    const sy = Math.abs(nbtInt(nbtGet(sizeObj,'y')));
+    const sz = Math.abs(nbtInt(nbtGet(sizeObj,'z')));
+    const totalBlocks = sx * sy * sz;
+
+    const longs = statesObj._longArray ? statesObj.data : [];
+    const bitsPerBlock = Math.max(2, Math.ceil(Math.log2(palette.length)));
+    const mask = (1n << BigInt(bitsPerBlock)) - 1n;
+
+    let bitPos = 0n;
+    for (let i = 0; i < totalBlocks; i++) {
+      const longIdx = Number(bitPos / 64n);
+      const bitOff = bitPos % 64n;
+      if (longIdx >= longs.length) break;
+
+      const cur = nbtLongToBI(longs[longIdx]);
+      let val;
+      if (bitOff + BigInt(bitsPerBlock) <= 64n) {
+        val = (cur >> bitOff) & mask;
+      } else {
+        const next = longIdx+1 < longs.length ? nbtLongToBI(longs[longIdx+1]) : 0n;
+        // Sign-extend cur to 64 bits unsigned for shift
+        const curU = cur < 0n ? cur + 0x10000000000000000n : cur;
+        const nextU = next < 0n ? next + 0x10000000000000000n : next;
+        const combined = curU | (nextU << 64n);
+        val = (combined >> bitOff) & mask;
+      }
+      bitPos += BigInt(bitsPerBlock);
+
+      const idx = Number(val);
+      if (idx < palette.length) {
+        const entry = palette[idx];
+        const blockName = nbtStr(nbtGet(entry, 'Name')).replace('minecraft:','') || 'air';
+        if (blockName !== 'air') counts[blockName] = (counts[blockName]||0) + 1;
+      }
+    }
+  }
+  return counts;
+}
+
+// ─── Block colors ────────────────────────────────────────────────────────────
+const BLOCK_COLORS = {
+  stone:'#8A8A8A',cobblestone:'#7a7a7a',grass_block:'#5D9E3F',dirt:'#8B6343',
+  sand:'#E8D5A3',gravel:'#9B8B7A',oak_log:'#A0752A',oak_planks:'#C4932F',
+  oak_leaves:'#4a7c3f',birch_log:'#D4C9A8',spruce_log:'#6B4423',
+  water:'#3355aa',lava:'#FF5500',glass:'#A8D8EA',
+  iron_ore:'#8A8A8A',coal_ore:'#3a3a3a',gold_ore:'#FFD700',diamond_ore:'#4fc3f7',
+  iron_block:'#C8C8C8',gold_block:'#FFD700',diamond_block:'#4fc3f7',
+  torch:'#FFB300',crafting_table:'#A0752A',furnace:'#7a7a7a',
+  chest:'#A0752A',bookshelf:'#A0752A',
+  red_wool:'#c0392b',blue_wool:'#2980b9',green_wool:'#27ae60',white_wool:'#f5f5f5',
+  bricks:'#9E4A39',stone_bricks:'#8A8A8A',
+  netherrack:'#7a2a2a',nether_bricks:'#3a1a1a',
+  obsidian:'#1a0a2a',bedrock:'#2a2a2a',
+};
+function blockColor(name) {
+  const n = name.replace(/.*:/,'').replace(/_/g,' ');
+  return BLOCK_COLORS[name.replace(/.*:/,'')] || '#' + Math.abs(name.split('').reduce((a,c)=>a*31+c.charCodeAt(0)|0,0)).toString(16).padStart(6,'0').slice(0,6);
+}
+function blockEmoji(name) {
+  const n = name.replace(/.*:/,'');
+  const map = {stone:'🪨',grass_block:'🌿',dirt:'🟫',sand:'🏜️',oak_log:'🪵',water:'💧',lava:'🔥',glass:'🪟',iron_block:'⬜',gold_block:'🟨',diamond_block:'💎',obsidian:'⬛',torch:'🕯️',chest:'📦',bookshelf:'📚',crafting_table:'🔨',furnace:'🏭'};
+  return map[n] || '🧱';
+}
+
+// ─── NBT Writer ─────────────────────────────────────────────────────────────
+function writeNBT(rootName, rootValue) {
+  const parts = [];
+  function w8(v)  { parts.push(new Uint8Array([v & 0xff])); }
+  function w16(v) { const b=new Uint8Array(2); new DataView(b.buffer).setInt16(0,v,false); parts.push(b); }
+  function w32(v) { const b=new Uint8Array(4); new DataView(b.buffer).setInt32(0,v,false); parts.push(b); }
+  function w64Long(l) {
+    // l = {_long, hi:Int32, lo:Uint32}
+    const b=new Uint8Array(8); const dv=new DataView(b.buffer);
+    dv.setInt32(0, l.hi, false); dv.setUint32(4, l.lo, false); parts.push(b);
+  }
+  function wStr(s) { const enc=new TextEncoder().encode(s); w16(enc.length); parts.push(enc); }
+
+  function tagType(v) {
+    if (v===null||v===undefined) return 0;
+    if (typeof v==='string') return 8;
+    if (typeof v==='number') return 3; // Int
+    if (v._byte) return 1;
+    if (v._short) return 2;
+    if (v._long) return 4;
+    if (v._float) return 5;
+    if (typeof v==='number') return 6; // Double fallback
+    if (v._byteArray) return 7;
+    if (v._list) return 9;
+    if (v._compound) return 10;
+    if (v._intArray) return 11;
+    if (v._longArray) return 12;
+    return 10;
+  }
+
+  function writeValue(type, v) {
+    switch(type) {
+      case 1: w8(v._byte ? v.v : v); break;
+      case 2: w16(v._short ? v.v : v); break;
+      case 3: w32(v); break;
+      case 4: w64Long(v); break;
+      case 5: { const b=new Uint8Array(4); new DataView(b.buffer).setFloat32(0,v._float?v.v:v,false); parts.push(b); break; }
+      case 6: { const b=new Uint8Array(8); new DataView(b.buffer).setFloat64(0,v,false); parts.push(b); break; }
+      case 7: { w32(v.data.length); const out=new Uint8Array(v.data.length); for(let i=0;i<v.data.length;i++) out[i]=v.data[i]; parts.push(out); break; }
+      case 8: wStr(v); break;
+      case 9: {
+        const list = v._list ? v.data : v;
+        const et = v._list ? v.etype : (list.length>0 ? tagType(list[0]) : 10);
+        w8(et); w32(list.length);
+        for (const item of list) writeValue(et, item);
+        break;
+      }
+      case 10: {
+        const entries = Object.entries(v).filter(([k])=>k!=='_compound');
+        for (const [k,child] of entries) {
+          const t=tagType(child); w8(t); wStr(k); writeValue(t,child);
+        }
+        w8(0); break;
+      }
+      case 11: { w32(v.data.length); for(const n of v.data) w32(n); break; }
+      case 12: { w32(v.data.length); for(const l of v.data) w64Long(l); break; }
+    }
+  }
+
+  // Root compound tag
+  w8(10); wStr(rootName); writeValue(10, rootValue);
+  const total = parts.reduce((a,b)=>a+b.length,0);
+  const out = new Uint8Array(total);
+  let off=0; for(const p of parts){out.set(p,off);off+=p.length;}
+  return out;
+}
+
+// ─── Litematic exporter ──────────────────────────────────────────────────────
+function deepCloneNBT(v) {
+  if (v === null || v === undefined) return v;
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v;
+  if (v instanceof Int8Array) return new Int8Array(v);
+  if (v instanceof Int32Array) return new Int32Array(v);
+  if (Array.isArray(v)) return v.map(deepCloneNBT);
+  if (typeof v === 'object') {
+    const out = {};
+    for (const [k,val] of Object.entries(v)) out[k] = deepCloneNBT(val);
+    return out;
+  }
+  return v;
+}
+
+function applyReplacesToNBT(nbt, replacements) {
+  if (!Object.keys(replacements).length) return nbt;
+  const clone = deepCloneNBT(nbt);
+  const regionsObj = nbtGet(clone, 'Regions') || {};
+  const regionKeys = Object.keys(regionsObj).filter(k => k !== '_compound');
+  for (const regionName of regionKeys) {
+    const region = regionsObj[regionName];
+    const paletteList = nbtGet(region, 'BlockStatePalette');
+    const palette = nbtList(paletteList);
+    for (const entry of palette) {
+      const name = nbtGet(entry, 'Name');
+      if (typeof name === 'string' && replacements[name]) {
+        entry['Name'] = replacements[name];
+      }
+    }
+  }
+  return clone;
+}
+
+function exportLitematic() {
+  if (!state.rawNBT) { toast('Aucun fichier chargé !','#c0392b'); return; }
+
+  // Build replacement map from history
+  const replacements = {};
+  // Replay history in reverse to get final mapping
+  for (const h of [...state.history].reverse()) {
+    const fromFull = h.from.includes(':') ? h.from : 'minecraft:'+h.from;
+    const toFull   = h.to.includes(':')   ? h.to   : 'minecraft:'+h.to;
+    replacements[fromFull] = toFull;
+  }
+
+  if (!Object.keys(replacements).length) { toast('Aucune modification à exporter !','#888'); return; }
+
+  toast('⛏ Génération du .litematic...');
+  setTimeout(() => {
+    try {
+      const modifiedNBT = applyReplacesToNBT(state.rawNBT, replacements);
+      const rawBytes = writeNBT('', modifiedNBT);
+      const compressed = pako.gzip(rawBytes);
+      const blob = new Blob([compressed], {type:'application/octet-stream'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (state.fileName||'export').replace('.litematic','') + '_modified.litematic';
+      a.click();
+      toast('✔ .litematic exporté !');
+    } catch(e) {
+      console.error(e);
+      toast('Erreur export : '+e.message,'#c0392b');
+    }
+  }, 50);
+}
+
+// ─── App State ───────────────────────────────────────────────────────────────
+let state = { counts: {}, original: {}, history: [], filter: '', sort: 'count', rawNBT: null, fileName: '' };
+
+function toast(msg, color='var(--grass)') {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.borderColor = color;
+  t.style.color = color;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2500);
+}
+
+function formatName(n) {
+  return n.replace(/.*:/,'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+function render() {
+  const app = document.getElementById('app');
+  const keys = Object.keys(state.counts);
+  if (!keys.length) { app.innerHTML='<div class="empty-state"><span class="e-icon">🪨</span><p>Aucun bloc trouvé</p></div>'; return; }
+
+  const total = Object.values(state.counts).reduce((a,b)=>a+b,0);
+  const types = keys.length;
+  const max = Math.max(...Object.values(state.counts));
+
+  // Filter
+  let filtered = keys.filter(k => !state.filter || k.includes(state.filter.toLowerCase()));
+
+  // Sort
+  if (state.sort === 'count') filtered.sort((a,b)=>state.counts[b]-state.counts[a]);
+  else if (state.sort === 'name') filtered.sort((a,b)=>a.localeCompare(b));
+  else if (state.sort === 'count_asc') filtered.sort((a,b)=>state.counts[a]-state.counts[b]);
+
+  let html = `
+  <div class="stats-bar">
+    <div class="stat-chip">${total.toLocaleString()}<span>blocs total</span></div>
+    <div class="stat-chip">${types}<span>types</span></div>
+    <div class="stat-chip">${Math.ceil(total/64)}<span>stacks</span></div>
+  </div>
+
+  <div class="controls">
+    <input type="text" id="searchInput" placeholder="🔍 Rechercher..." value="${state.filter}" oninput="state.filter=this.value;render()">
+    <select onchange="state.sort=this.value;render()">
+      <option value="count" ${state.sort==='count'?'selected':''}>↓ Quantité</option>
+      <option value="count_asc" ${state.sort==='count_asc'?'selected':''}>↑ Quantité</option>
+      <option value="name" ${state.sort==='name'?'selected':''}>A-Z Nom</option>
+    </select>
+  </div>
+
+  <div class="section-title">📦 MATÉRIAUX (${filtered.length})</div>
+  <div class="material-list">
+  ${filtered.map(k => {
+    const c = state.counts[k];
+    const pct = Math.round(c/max*100);
+    const stacks = Math.floor(c/64);
+    const rem = c%64;
+    const stackStr = stacks>0 ? `${stacks}x64${rem>0?`+${rem}`:''}` : `${rem}`;
+    return `<div class="mat-row" onclick="selectBlock('${k}')" id="row_${k.replace(/[^a-z0-9]/g,'_')}">
+      <div class="mat-icon" style="background:${blockColor(k)}">${blockEmoji(k)}</div>
+      <div class="mat-name">${formatName(k)}</div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <div class="mat-stacks">${stackStr}</div>
+      <div class="mat-count">${c.toLocaleString()}</div>
+    </div>`;
+  }).join('')}
+  </div>
+
+  <div class="section-title">🔄 REMPLACER</div>
+  <div class="replace-panel">
+    <h3>🔄 REMPLACEMENT DE BLOCS</h3>
+    <div id="selectedInfo" class="selected-info" style="display:none"></div>
+    <div class="replace-row">
+      <label>De :</label>
+      <select id="fromBlock">
+        <option value="">-- Choisir --</option>
+        ${keys.map(k=>`<option value="${k}">${formatName(k)} (${state.counts[k].toLocaleString()})</option>`).join('')}
+      </select>
+    </div>
+    <div class="replace-row">
+      <label>Par :</label>
+      <div style="flex:1;position:relative">
+        <input type="text" id="toBlockSearch" placeholder="🔍 Chercher un bloc..." autocomplete="off"
+          oninput="filterToList(this.value)"
+          onfocus="document.getElementById('toBlockDropdown').style.display='block'"
+          style="width:100%;background:#111;border:2px solid #444;color:#e0e0e0;font-family:VT323,monospace;font-size:clamp(16px,4vw,20px);padding:7px 10px;outline:none;border-radius:2px;">
+        <div id="toBlockDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#111;border:2px solid var(--gold);z-index:100;border-radius:0 0 4px 4px;">
+          <div id="toBlockList"></div>
+        </div>
+      </div>
+      <input type="hidden" id="toBlock">
+    </div>
+    <button class="btn btn-green" onclick="doReplace()">⚡ APPLIQUER LE REMPLACEMENT</button>
+
+    ${state.history.length ? `
+    <div class="replace-history">
+      <div style="color:#888;font-size:14px;margin:10px 0 6px;">Historique :</div>
+      ${state.history.map((h,i)=>`
+        <div class="history-item">
+          <span>${formatName(h.from)} → ${formatName(h.to)} (${h.count.toLocaleString()})</span>
+          <button class="undo-btn" onclick="undoReplace(${i})">↩ UNDO</button>
+        </div>
+      `).join('')}
+    </div>` : ''}
+  </div>
+
+  <div class="export-section">
+    <div class="section-title">💾 EXPORTER</div>
+    <button class="btn btn-green" style="margin-bottom:8px" onclick="exportLitematic()">⛏ EXPORTER EN .LITEMATIC</button>
+    <div class="btn-row">
+      <button class="btn btn-blue" onclick="exportCSV()">📄 CSV</button>
+      <button class="btn btn-blue" onclick="exportTXT()">📋 TXT</button>
+    </div>
+  </div>
+  `;
+
+  app.innerHTML = html;
+}
+
+// ─── Full Minecraft block list (1.20) ────────────────────────────────────────
+const MC_BLOCKS = [
+"air","stone","granite","polished_granite","diorite","polished_diorite","andesite","polished_andesite",
+"grass_block","dirt","coarse_dirt","podzol","cobblestone","oak_planks","spruce_planks","birch_planks",
+"jungle_planks","acacia_planks","dark_oak_planks","mangrove_planks","cherry_planks","bamboo_planks",
+"oak_sapling","spruce_sapling","birch_sapling","jungle_sapling","acacia_sapling","dark_oak_sapling",
+"mangrove_propagule","cherry_sapling","bedrock","sand","red_sand","gravel","gold_ore","deepslate_gold_ore",
+"iron_ore","deepslate_iron_ore","coal_ore","deepslate_coal_ore","nether_gold_ore","oak_log","spruce_log",
+"birch_log","jungle_log","acacia_log","dark_oak_log","mangrove_log","cherry_log","bamboo_block",
+"stripped_spruce_log","stripped_birch_log","stripped_jungle_log","stripped_acacia_log","stripped_dark_oak_log",
+"stripped_oak_log","stripped_mangrove_log","stripped_cherry_log","stripped_bamboo_block",
+"oak_wood","spruce_wood","birch_wood","jungle_wood","acacia_wood","dark_oak_wood","mangrove_wood","cherry_wood",
+"oak_leaves","spruce_leaves","birch_leaves","jungle_leaves","acacia_leaves","dark_oak_leaves",
+"mangrove_leaves","cherry_leaves","azalea_leaves","flowering_azalea_leaves",
+"sponge","wet_sponge","glass","lapis_ore","deepslate_lapis_ore","lapis_block","dispenser","sandstone",
+"chiseled_sandstone","cut_sandstone","note_block","white_bed","orange_bed","magenta_bed","light_blue_bed",
+"yellow_bed","lime_bed","pink_bed","gray_bed","light_gray_bed","cyan_bed","purple_bed","blue_bed",
+"brown_bed","green_bed","red_bed","black_bed","powered_rail","detector_rail","sticky_piston","cobweb",
+"grass","fern","dead_bush","seagrass","tall_seagrass","piston","piston_head",
+"white_wool","orange_wool","magenta_wool","light_blue_wool","yellow_wool","lime_wool","pink_wool",
+"gray_wool","light_gray_wool","cyan_wool","purple_wool","blue_wool","brown_wool","green_wool","red_wool","black_wool",
+"dandelion","poppy","blue_orchid","allium","azure_bluet","red_tulip","orange_tulip","white_tulip","pink_tulip",
+"oxeye_daisy","cornflower","lily_of_the_valley","wither_rose","torchflower","pink_petals",
+"brown_mushroom","red_mushroom","gold_block","iron_block","bricks","tnt","bookshelf",
+"chiseled_bookshelf","mossy_cobblestone","obsidian","torch","oak_stairs","chest","crafting_table",
+"farmland","furnace","oak_sign","spruce_sign","birch_sign","acacia_sign","cherry_sign","jungle_sign",
+"dark_oak_sign","mangrove_sign","bamboo_sign","ladder","cobblestone_stairs","oak_door","iron_door",
+"spruce_door","birch_door","jungle_door","acacia_door","dark_oak_door","mangrove_door","cherry_door","bamboo_door",
+"oak_pressure_plate","stone_pressure_plate","iron_ore","redstone_ore","deepslate_redstone_ore",
+"stone_bricks","mossy_stone_bricks","cracked_stone_bricks","chiseled_stone_bricks","infested_stone",
+"brown_mushroom_block","red_mushroom_block","mushroom_stem","iron_bars","chain","glass_pane","melon",
+"vine","oak_fence_gate","spruce_fence_gate","birch_fence_gate","jungle_fence_gate","acacia_fence_gate",
+"dark_oak_fence_gate","mangrove_fence_gate","cherry_fence_gate","bamboo_fence_gate",
+"brick_stairs","stone_brick_stairs","mycelium","lily_pad","nether_bricks","nether_brick_fence",
+"nether_brick_stairs","enchanting_table","end_portal_frame","end_stone","end_stone_bricks",
+"dragon_egg","redstone_lamp","oak_slab","spruce_slab","birch_slab","jungle_slab","acacia_slab",
+"dark_oak_slab","mangrove_slab","cherry_slab","bamboo_slab","stone_slab","smooth_stone_slab",
+"sandstone_slab","cut_sandstone_slab","cobblestone_slab","brick_slab","stone_brick_slab",
+"nether_brick_slab","quartz_slab","red_sandstone_slab","cut_red_sandstone_slab","purpur_slab",
+"smooth_stone","smooth_sandstone","smooth_quartz","smooth_red_sandstone",
+"sandstone_stairs","oak_fence","nether_brick_fence","spruce_fence","birch_fence","jungle_fence",
+"acacia_fence","dark_oak_fence","mangrove_fence","cherry_fence","bamboo_fence",
+"soul_sand","soul_soil","glowstone","nether_portal","netherrack","nether_bricks","crying_obsidian",
+"quartz_block","chiseled_quartz_block","quartz_pillar","quartz_stairs","activator_rail",
+"dropper","white_terracotta","orange_terracotta","magenta_terracotta","light_blue_terracotta",
+"yellow_terracotta","lime_terracotta","pink_terracotta","gray_terracotta","light_gray_terracotta",
+"cyan_terracotta","purple_terracotta","blue_terracotta","brown_terracotta","green_terracotta",
+"red_terracotta","black_terracotta","terracotta",
+"white_stained_glass","orange_stained_glass","magenta_stained_glass","light_blue_stained_glass",
+"yellow_stained_glass","lime_stained_glass","pink_stained_glass","gray_stained_glass",
+"light_gray_stained_glass","cyan_stained_glass","purple_stained_glass","blue_stained_glass",
+"brown_stained_glass","green_stained_glass","red_stained_glass","black_stained_glass",
+"white_stained_glass_pane","orange_stained_glass_pane","magenta_stained_glass_pane",
+"acacia_stairs","dark_oak_stairs","prismarine","prismarine_bricks","dark_prismarine",
+"prismarine_stairs","prismarine_brick_stairs","dark_prismarine_stairs","prismarine_slab",
+"prismarine_brick_slab","dark_prismarine_slab","sea_lantern","hay_block","white_carpet",
+"orange_carpet","magenta_carpet","light_blue_carpet","yellow_carpet","lime_carpet","pink_carpet",
+"gray_carpet","light_gray_carpet","cyan_carpet","purple_carpet","blue_carpet","brown_carpet",
+"green_carpet","red_carpet","black_carpet","coal_block","packed_ice","sunflower","lilac",
+"rose_bush","peony","tall_grass","large_fern","white_banner","orange_banner","magenta_banner",
+"light_blue_banner","yellow_banner","lime_banner","pink_banner","gray_banner","light_gray_banner",
+"cyan_banner","purple_banner","blue_banner","brown_banner","green_banner","red_banner","black_banner",
+"red_sandstone","chiseled_red_sandstone","cut_red_sandstone","red_sandstone_stairs",
+"stone_button","oak_button","spruce_button","birch_button","jungle_button","acacia_button",
+"dark_oak_button","mangrove_button","cherry_button","bamboo_button","polished_granite_stairs",
+"smooth_red_sandstone_stairs","mossy_stone_brick_stairs","polished_diorite_stairs","mossy_cobblestone_stairs",
+"end_stone_brick_stairs","stone_stairs","smooth_sandstone_stairs","smooth_quartz_stairs",
+"granite_stairs","andesite_stairs","red_nether_brick_stairs","polished_andesite_stairs","diorite_stairs",
+"polished_granite_slab","smooth_red_sandstone_slab","mossy_stone_brick_slab","polished_diorite_slab",
+"mossy_cobblestone_slab","end_stone_brick_slab","smooth_sandstone_slab","smooth_quartz_slab",
+"granite_slab","andesite_slab","red_nether_brick_slab","polished_andesite_slab","diorite_slab",
+"scaffolding","redstone_block","nether_quartz_ore","hopper","chiseled_nether_bricks","cracked_nether_bricks",
+"quartz_bricks","iron_trapdoor","oak_trapdoor","spruce_trapdoor","birch_trapdoor","jungle_trapdoor",
+"acacia_trapdoor","dark_oak_trapdoor","mangrove_trapdoor","cherry_trapdoor","bamboo_trapdoor",
+"slime_block","barrier","honey_block","honeycomb_block","iron_ore",
+"magma_block","nether_wart_block","warped_wart_block","red_nether_bricks","bone_block",
+"observer","shulker_box","white_shulker_box","orange_shulker_box","magenta_shulker_box",
+"light_blue_shulker_box","yellow_shulker_box","lime_shulker_box","pink_shulker_box",
+"gray_shulker_box","light_gray_shulker_box","cyan_shulker_box","purple_shulker_box",
+"blue_shulker_box","brown_shulker_box","green_shulker_box","red_shulker_box","black_shulker_box",
+"white_glazed_terracotta","orange_glazed_terracotta","magenta_glazed_terracotta",
+"light_blue_glazed_terracotta","yellow_glazed_terracotta","lime_glazed_terracotta",
+"pink_glazed_terracotta","gray_glazed_terracotta","light_gray_glazed_terracotta",
+"cyan_glazed_terracotta","purple_glazed_terracotta","blue_glazed_terracotta",
+"brown_glazed_terracotta","green_glazed_terracotta","red_glazed_terracotta","black_glazed_terracotta",
+"white_concrete","orange_concrete","magenta_concrete","light_blue_concrete","yellow_concrete",
+"lime_concrete","pink_concrete","gray_concrete","light_gray_concrete","cyan_concrete",
+"purple_concrete","blue_concrete","brown_concrete","green_concrete","red_concrete","black_concrete",
+"white_concrete_powder","orange_concrete_powder","magenta_concrete_powder","light_blue_concrete_powder",
+"yellow_concrete_powder","lime_concrete_powder","pink_concrete_powder","gray_concrete_powder",
+"light_gray_concrete_powder","cyan_concrete_powder","purple_concrete_powder","blue_concrete_powder",
+"brown_concrete_powder","green_concrete_powder","red_concrete_powder","black_concrete_powder",
+"turtle_egg","dead_tube_coral_block","dead_brain_coral_block","dead_bubble_coral_block",
+"dead_fire_coral_block","dead_horn_coral_block","tube_coral_block","brain_coral_block",
+"bubble_coral_block","fire_coral_block","horn_coral_block","dried_kelp_block","conduit",
+"blue_ice","polished_granite","polished_diorite","polished_andesite",
+"granite_wall","diorite_wall","andesite_wall","sandstone_wall","mossy_stone_brick_wall",
+"brick_wall","prismarine_wall","red_sandstone_wall","mossy_cobblestone_wall","stone_brick_wall",
+"nether_brick_wall","end_stone_brick_wall","blackstone_wall","polished_blackstone_wall",
+"polished_blackstone_brick_wall","cobblestone_wall","blackstone","polished_blackstone",
+"polished_blackstone_bricks","cracked_polished_blackstone_bricks","chiseled_polished_blackstone",
+"gilded_blackstone","blackstone_stairs","blackstone_slab","blackstone_wall",
+"polished_blackstone_stairs","polished_blackstone_slab","polished_blackstone_brick_stairs",
+"polished_blackstone_brick_slab","ancient_debris","crying_obsidian","respawn_anchor",
+"lodestone","netherite_block","target","shroomlight","warped_nylium","crimson_nylium",
+"warped_fungus","crimson_fungus","warped_roots","crimson_roots","nether_sprouts",
+"warped_stem","crimson_stem","stripped_warped_stem","stripped_crimson_stem",
+"warped_hyphae","crimson_hyphae","stripped_warped_hyphae","stripped_crimson_hyphae",
+"warped_planks","crimson_planks","warped_slab","crimson_slab","warped_pressure_plate",
+"crimson_pressure_plate","warped_fence","crimson_fence","warped_trapdoor","crimson_trapdoor",
+"warped_fence_gate","crimson_fence_gate","warped_stairs","crimson_stairs",
+"warped_door","crimson_door","warped_sign","crimson_sign","warped_button","crimson_button",
+"tuff","calcite","powder_snow","pointed_dripstone","dripstone_block","rooted_dirt",
+"mud","packed_mud","mud_bricks","mud_brick_stairs","mud_brick_slab","mud_brick_wall",
+"deepslate","cobbled_deepslate","polished_deepslate","chiseled_deepslate","deepslate_bricks",
+"deepslate_tiles","cracked_deepslate_bricks","cracked_deepslate_tiles","infested_deepslate",
+"cobbled_deepslate_stairs","cobbled_deepslate_slab","cobbled_deepslate_wall",
+"polished_deepslate_stairs","polished_deepslate_slab","polished_deepslate_wall",
+"deepslate_brick_stairs","deepslate_brick_slab","deepslate_brick_wall",
+"deepslate_tile_stairs","deepslate_tile_slab","deepslate_tile_wall",
+"sculk","sculk_vein","sculk_catalyst","sculk_shrieker","sculk_sensor","calibrated_sculk_sensor",
+"amethyst_block","budding_amethyst","amethyst_cluster","large_amethyst_bud",
+"medium_amethyst_bud","small_amethyst_bud","tinted_glass","moss_carpet","moss_block",
+"big_dripleaf","small_dripleaf","hanging_roots","spore_blossom","azalea","flowering_azalea",
+"glow_lichen","cave_vines","cave_vines_plant","lightning_rod","copper_block","exposed_copper",
+"weathered_copper","oxidized_copper","copper_ore","deepslate_copper_ore",
+"cut_copper","exposed_cut_copper","weathered_cut_copper","oxidized_cut_copper",
+"cut_copper_stairs","exposed_cut_copper_stairs","weathered_cut_copper_stairs","oxidized_cut_copper_stairs",
+"cut_copper_slab","exposed_cut_copper_slab","weathered_cut_copper_slab","oxidized_cut_copper_slab",
+"waxed_copper_block","waxed_exposed_copper","waxed_weathered_copper","waxed_oxidized_copper",
+"waxed_cut_copper","waxed_exposed_cut_copper","waxed_weathered_cut_copper","waxed_oxidized_cut_copper",
+"waxed_cut_copper_stairs","waxed_exposed_cut_copper_stairs","waxed_weathered_cut_copper_stairs",
+"waxed_oxidized_cut_copper_stairs","waxed_cut_copper_slab","waxed_exposed_cut_copper_slab",
+"waxed_weathered_cut_copper_slab","waxed_oxidized_cut_copper_slab",
+"mangrove_roots","muddy_mangrove_roots","frogspawn","ochre_froglight","verdant_froglight","pearlescent_froglight",
+"decorated_pot","suspicious_sand","suspicious_gravel","pitcher_plant","torchflower_crop",
+"sniffer_egg","bamboo_mosaic","bamboo_mosaic_stairs","bamboo_mosaic_slab"
+].map(b => 'minecraft:'+b);
+
+function getAllBlockOptions() {
+  // Merge MC list + blocks already in the current palette (deduped)
+  const paletteBlocks = Object.keys(state.counts).map(k => k.includes(':') ? k : 'minecraft:'+k);
+  const all = [...new Set([...MC_BLOCKS, ...paletteBlocks])].sort();
+  return all;
+}
+
+function filterToList(query) {
+  const dropdown = document.getElementById('toBlockDropdown');
+  const listEl = document.getElementById('toBlockList');
+  dropdown.style.display = 'block';
+  const q = query.toLowerCase().replace(/ /g,'_');
+  const all = getAllBlockOptions();
+  const matches = q ? all.filter(b => b.replace('minecraft:','').includes(q)) : all;
+  const show = matches.slice(0,80);
+  listEl.innerHTML = show.map(b => {
+    const name = b.replace('minecraft:','');
+    const inPalette = !!state.counts[name] || !!state.counts[b];
+    return `<div onclick="selectToBlock('${b}')" style="padding:7px 12px;cursor:pointer;font-family:VT323,monospace;font-size:clamp(15px,4vw,19px);border-bottom:1px solid #222;display:flex;align-items:center;gap:8px;${inPalette?'color:#FFD700':'color:#ccc'}" onmouseover="this.style.background='#222'" onmouseout="this.style.background=''">
+      <div style="width:14px;height:14px;border-radius:2px;background:${blockColor(name)};border:1px solid #555;flex-shrink:0"></div>
+      ${formatName(b)}${inPalette?' ★':''}
+    </div>`;
+  }).join('') + (matches.length > 80 ? `<div style="padding:6px 12px;color:#666;font-size:13px">+${matches.length-80} résultats, affinez la recherche</div>` : '');
+}
+
+function selectToBlock(val) {
+  document.getElementById('toBlock').value = val;
+  document.getElementById('toBlockSearch').value = formatName(val);
+  document.getElementById('toBlockDropdown').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  const dd = document.getElementById('toBlockDropdown');
+  if (dd && !dd.contains(e.target) && e.target.id !== 'toBlockSearch') dd.style.display = 'none';
+});
+
+let selectedBlock = null;
+function selectBlock(name) {
+  selectedBlock = name;
+  const fromSel = document.getElementById('fromBlock');
+  const info = document.getElementById('selectedInfo');
+  if (fromSel) { fromSel.value = name; }
+  if (info) {
+    info.style.display = 'block';
+    info.textContent = `✔ Sélectionné : ${formatName(name)} — ${state.counts[name]?.toLocaleString()||0} blocs`;
+  }
+  document.querySelectorAll('.mat-row').forEach(r=>r.classList.remove('selected'));
+  const row = document.getElementById('row_'+name.replace(/[^a-z0-9]/g,'_'));
+  if (row) { row.classList.add('selected'); row.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+}
+
+function doReplace() {
+  const from = document.getElementById('fromBlock')?.value?.trim();
+  let to = document.getElementById('toBlock')?.value?.trim();
+  if (!from) { toast('Choisis un bloc source !','#c0392b'); return; }
+  if (!to) { toast('Choisis un bloc de remplacement dans la liste !','#c0392b'); return; }
+  if (!to.includes(':')) to = 'minecraft:'+to;
+  const toName = to.replace('minecraft:','');
+  if (!state.counts[from]) { toast('Bloc introuvable !','#c0392b'); return; }
+
+  const count = state.counts[from];
+  state.history.unshift({ from, to: toName, count, snapshot: {...state.counts} });
+  if (state.history.length > 10) state.history.pop();
+
+  if (toName === 'air' || to === 'minecraft:air') {
+    delete state.counts[from];
+  } else {
+    state.counts[toName] = (state.counts[toName]||0) + count;
+    delete state.counts[from];
+  }
+
+  toast(`✔ ${count.toLocaleString()} × ${formatName(from)} → ${formatName(toName)}`);
+  render();
+}
+
+function undoReplace(idx) {
+  const h = state.history[idx];
+  state.counts = {...h.snapshot};
+  state.history.splice(idx,1);
+  toast('↩ Annulé !');
+  render();
+}
+
+function exportCSV() {
+  const rows = [['Bloc','Quantité','Stacks','Reste']];
+  const sorted = Object.entries(state.counts).sort((a,b)=>b[1]-a[1]);
+  for (const [k,v] of sorted) rows.push([formatName(k),v,Math.floor(v/64),v%64]);
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  download('materiaux.csv', csv, 'text/csv');
+  toast('CSV exporté !');
+}
+
+function exportTXT() {
+  const sorted = Object.entries(state.counts).sort((a,b)=>b[1]-a[1]);
+  const total = sorted.reduce((a,[,v])=>a+v,0);
+  let txt = `=== LISTE DES MATÉRIAUX ===\nTotal : ${total.toLocaleString()} blocs\n\n`;
+  for (const [k,v] of sorted) {
+    const s=Math.floor(v/64),r=v%64;
+    txt += `${formatName(k).padEnd(30)} ${String(v).padStart(8)} blocs  (${s>0?s+'×64':''}${r>0?'+'+r:''})\n`;
+  }
+  download('materiaux.txt', txt, 'text/plain');
+  toast('TXT exporté !');
+}
+
+function download(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type}));
+  a.download = name; a.click();
+}
+
+// ─── File handling ────────────────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!file.name.endsWith('.litematic')) { toast('Fichier .litematic requis !','#c0392b'); return; }
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="loading">⛏ ANALYSE EN COURS...</div>';
+  try {
+    const buf = await file.arrayBuffer();
+    const decompressed = pako.inflate(new Uint8Array(buf));
+    const nbt = readNBT(decompressed.buffer);
+    const counts = parseLitematic(buf);
+    if (!Object.keys(counts).length) throw new Error('Aucun bloc trouvé');
+    state = { counts, original: {...counts}, history: [], filter: '', sort: 'count', rawNBT: nbt, fileName: file.name, decompressed };
+    render();
+    toast(`✔ ${file.name} chargé !`);
+  } catch(e) {
+    console.error(e);
+    app.innerHTML = `<div class="empty-state"><span class="e-icon">❌</span><p>Erreur : ${e.message}</p></div>`;
+    toast('Erreur de lecture !','#c0392b');
+  }
+}
+
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+
+fileInput.addEventListener('change', e => { if(e.target.files[0]) handleFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+</script>
+</body>
+</html>
